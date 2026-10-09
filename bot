@@ -6,7 +6,7 @@ from aiogram.types import (Message, ReplyKeyboardMarkup, KeyboardButton, WebAppI
                            MenuButtonWebApp)
 
 load_dotenv()
-TOKEN, URL = os.environ["8665879669:AAEI85CxoRe0vEvOwxv_ut1Gn55E-hX5a9E"], os.environ["WEBAPP_URL"]
+TOKEN, URL = os.environ["8665879669:AAEI85CxoRe0vEvOwxv_ut1Gn55E-hX5a9E"], os.environ["8665879669:AAEI85CxoRe0vEvOwxv_ut1Gn55E-hX5a9E"]
 bot, dp = Bot(TOKEN), Dispatcher()
 
 # игра -> (название, лучший результат = max/min, единица, допустимый диапазон)
