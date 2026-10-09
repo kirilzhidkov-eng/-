@@ -1,0 +1,84 @@
+import asyncio, json, os, sqlite3, logging
+from dotenv import load_dotenv
+from aiogram import Bot, Dispatcher, F
+from aiogram.filters import Command, CommandStart
+from aiogram.types import (Message, ReplyKeyboardMarkup, KeyboardButton, WebAppInfo,
+                           MenuButtonWebApp)
+
+load_dotenv()
+TOKEN, URL = os.environ["8665879669:AAEI85CxoRe0vEvOwxv_ut1Gn55E-hX5a9E"], os.environ["WEBAPP_URL"]
+bot, dp = Bot(TOKEN), Dispatcher()
+
+# игра -> (название, лучший результат = max/min, единица, допустимый диапазон)
+GAMES = {
+    "2048":     ("2048",      "max", "очков", (0, 10_000_000)),
+    "memory":   ("Мемори",    "min", "ходов", (8, 300)),
+    "reaction": ("Реакция",   "min", "мс",    (80, 5000)),
+}
+
+db = sqlite3.connect("scores.db")
+db.execute("""CREATE TABLE IF NOT EXISTS scores(
+    user_id INTEGER, name TEXT, game TEXT, score INTEGER, PRIMARY KEY(user_id, game))""")
+
+
+def save_score(uid, name, game, score):
+    """Сохраняет результат, только если он лучше прежнего. Возвращает True при рекорде."""
+    _, mode, _, _ = GAMES[game]
+    row = db.execute("SELECT score FROM scores WHERE user_id=? AND game=?", (uid, game)).fetchone()
+    better = row is None or (score > row[0] if mode == "max" else score < row[0])
+    if better:
+        db.execute("INSERT OR REPLACE INTO scores VALUES(?,?,?,?)", (uid, name, game, score))
+        db.commit()
+    return better
+
+
+def keyboard():
+    return ReplyKeyboardMarkup(
+        keyboard=[[KeyboardButton(text="🎮 Играть", web_app=WebAppInfo(url=URL))],
+                  [KeyboardButton(text="🏆 Рейтинг")]],
+        resize_keyboard=True)
+
+
+@dp.message(CommandStart())
+async def start(m: Message):
+    await bot.set_chat_menu_button(m.chat.id, MenuButtonWebApp(text="Играть", web_app=WebAppInfo(url=URL)))
+    await m.answer(
+        f"Привет, {m.from_user.first_name}! 👋\n\n"
+        "Тут три лёгкие игры: <b>2048</b>, <b>Мемори</b> и <b>Реакция</b>.\n"
+        "Жми «🎮 Играть», а после игры отправь результат кнопкой в приложении — "
+        "он попадёт в рейтинг.", parse_mode="HTML", reply_markup=keyboard())
+
+
+@dp.message(Command("top"))
+@dp.message(F.text == "🏆 Рейтинг")
+async def top(m: Message):
+    parts = []
+    for g, (title, mode, unit, _) in GAMES.items():
+        order = "DESC" if mode == "max" else "ASC"
+        rows = db.execute(f"SELECT name, score FROM scores WHERE game=? ORDER BY score {order} LIMIT 5", (g,)).fetchall()
+        medals = ["🥇", "🥈", "🥉", "4.", "5."]
+        lines = [f"{medals[i]} {n} — {s} {unit}" for i, (n, s) in enumerate(rows)] or ["пока пусто"]
+        parts.append(f"<b>{title}</b>\n" + "\n".join(lines))
+    await m.answer("\n\n".join(parts), parse_mode="HTML")
+
+
+@dp.message(F.web_app_data)
+async def from_app(m: Message):
+    try:
+        data = json.loads(m.web_app_data.data)
+        game, score = data["game"], int(data["score"])
+        lo, hi = GAMES[game][3]
+        assert lo <= score <= hi
+    except Exception:
+        return await m.answer("Не получилось прочитать результат 🤔")
+    title, _, unit, _ = GAMES[game]
+    record = save_score(m.from_user.id, m.from_user.full_name, game, score)
+    await m.answer(f"{title}: {score} {unit}" + ("\n🔥 Новый личный рекорд!" if record else "\nРекорд не побит, пробуй ещё!"))
+
+
+async def main():
+    logging.basicConfig(level=logging.INFO)
+    await dp.start_polling(bot)
+
+if __name__ == "__main__":
+    asyncio.run(main())
