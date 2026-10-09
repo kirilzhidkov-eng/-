@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="ru"><head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>Игры</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+:root{--bg:#12141c;--card:#1c2030;--line:#2a3045;--tx:#f2f4fa;--mut:#8b93ad;--ac:#7cf5c0;--ac2:#ffcf5c}
+*{box-sizing:border-box;margin:0;-webkit-tap-highlight-color:transparent;user-select:none}
+body{background:var(--bg);color:var(--tx);font:16px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;min-height:100vh;padding:14px 14px calc(14px + env(safe-area-inset-bottom));display:flex;flex-direction:column;align-items:center;touch-action:manipulation}
+.w{width:100%;max-width:440px}
+.tabs{display:flex;gap:6px;background:var(--card);padding:5px;border-radius:16px;margin-bottom:16px}
+.tabs button{flex:1;padding:11px 0;border:0;border-radius:12px;background:none;color:var(--mut);font:600 14px inherit;cursor:pointer;transition:.25s}
+.tabs button.on{background:var(--ac);color:#0b1a14}
+.bar{display:flex;gap:10px;margin-bottom:14px}
+.stat{flex:1;background:var(--card);border-radius:14px;padding:10px 14px}
+.stat small{display:block;color:var(--mut);font-size:11px;letter-spacing:.5px}
+.stat b{font-size:22px}
+.game{display:none}.game.on{display:block;animation:in .35s}
+@keyframes in{from{opacity:0;transform:translateY(10px)}}
+.btn{width:100%;padding:14px;border:0;border-radius:14px;background:var(--card);color:var(--tx);font:700 15px inherit;cursor:pointer;margin-top:12px;transition:.2s}
+.btn:active{transform:scale(.97)}.btn.p{background:var(--ac2);color:#2a1d00}
+.hint{color:var(--mut);font-size:13px;text-align:center;margin-top:12px}
+/* 2048 */
+#b2048{position:relative;background:var(--card);border-radius:16px;padding:8px;display:grid;grid-template-columns:repeat(4,1fr);gap:8px;aspect-ratio:1;touch-action:none}
+.c{border-radius:10px;background:#252a3d;display:grid;place-items:center;font-weight:800;font-size:clamp(20px,7vw,32px);transition:background .15s}
+.c.n{animation:pop .2s}@keyframes pop{from{transform:scale(.6)}}
+/* memory */
+#bm{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.m{aspect-ratio:1;perspective:500px;border:0;background:none;padding:0;cursor:pointer}
+.m i{display:grid;place-items:center;width:100%;height:100%;border-radius:14px;background:var(--card);font-style:normal;font-size:clamp(26px,9vw,40px);transition:transform .4s,background .3s;transform-style:preserve-3d;border:1px solid var(--line)}
+.m i:before{content:"?";color:var(--mut);font-size:22px;font-weight:700}
+.m.f i,.m.d i{transform:rotateY(180deg);background:#252a3d}.m.f i:before,.m.d i:before{content:attr(data-e);color:inherit;font-size:inherit;transform:rotateY(180deg)}
+.m.d i{background:#17382d;border-color:var(--ac)}
+/* reaction */
+#rz{height:300px;border:0;border-radius:20px;width:100%;font:800 24px inherit;color:#fff;background:#2b3250;cursor:pointer;transition:background .15s}
+#rz.w{background:#a8324a}#rz.g{background:#1fb86c}
+.ok{display:none;align-items:center;justify-content:center;position:absolute;inset:0;background:rgba(18,20,28,.86);border-radius:16px;flex-direction:column;gap:6px;font-weight:800;font-size:26px;text-align:center}
+.ok.s{display:flex}
+</style></head><body>
+<div class="w">
+ <div class="tabs" id="tabs"><button data-g="2048" class="on">2048</button><button data-g="memory">Мемори</button><button data-g="reaction">Реакция</button></div>
+
+ <section class="game on" id="g2048">
+  <div class="bar"><div class="stat"><small>ОЧКИ</small><b id="s1">0</b></div><div class="stat"><small>РЕКОРД</small><b id="r1">0</b></div></div>
+  <div style="position:relative"><div id="b2048"></div><div class="ok" id="o1">Конец игры<small style="font-size:13px;font-weight:400;color:var(--mut)">нет ходов</small></div></div>
+  <p class="hint">Свайпай по полю, чтобы сдвигать плитки</p>
+  <button class="btn p" data-send="2048">Отправить результат в чат</button><button class="btn" id="n1">Новая игра</button>
+ </section>
+
+ <section class="game" id="gmemory">
+  <div class="bar"><div class="stat"><small>ХОДЫ</small><b id="s2">0</b></div><div class="stat"><small>ЛУЧШИЙ</small><b id="r2">—</b></div></div>
+  <div id="bm"></div>
+  <button class="btn p" data-send="memory">Отправить результат в чат</button><button class="btn" id="n2">Заново</button>
+ </section>
+
+ <section class="game" id="greaction">
+  <div class="bar"><div class="stat"><small>ПОСЛЕДНИЙ, МС</small><b id="s3">—</b></div><div class="stat"><small>ЛУЧШИЙ, МС</small><b id="r3">—</b></div></div>
+  <button id="rz">Нажми, чтобы начать</button>
+  <p class="hint">Жди зелёный экран и жми как можно быстрее</p>
+  <button class="btn p" data-send="reaction">Отправить лучший результат</button>
+ </section>
+</div>
+<script>
+const tg=window.Telegram&&Telegram.WebApp;
+if(tg){tg.ready();tg.expand();try{tg.setHeaderColor("#12141c");tg.setBackgroundColor("#12141c")}catch(e){}}
+const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
+const hap=t=>{try{tg.HapticFeedback.impactOccurred(t||"light")}catch(e){}};
+const store={get:(k,d)=>{try{return JSON.parse(localStorage.getItem("g_"+k))??d}catch(e){return d}},set:(k,v)=>{try{localStorage.setItem("g_"+k,JSON.stringify(v))}catch(e){}}};
+const best={"2048":store.get("2048",0),memory:store.get("memory",null),reaction:store.get("reaction",null)};
+const last={"2048":0,memory:null,reaction:null};
+
+$("#tabs").onclick=e=>{const b=e.target.closest("button");if(!b)return;
+ $$("#tabs button").forEach(x=>x.classList.toggle("on",x===b));
+ $$(".game").forEach(x=>x.classList.toggle("on",x.id==="g"+b.dataset.g));hap()};
+
+$$("[data-send]").forEach(b=>b.onclick=()=>{
+ const g=b.dataset.send,v=g==="2048"?best[g]:best[g];
+ if(!v){const m="Сначала сыграй хотя бы раз";return tg&&tg.showAlert?tg.showAlert(m):alert(m)}
+ if(tg&&tg.initData){tg.sendData(JSON.stringify({game:g,score:v}))}
+ else alert("Отправка работает, когда приложение открыто кнопкой «🎮 Играть» в боте")});
+
+/* ---------- 2048 ---------- */
+const COL={0:"#252a3d",2:"#3a4468",4:"#4a5a96",8:"#e0883a",16:"#e86a3a",32:"#e84a4a",64:"#d93a7a",128:"#c8a428",256:"#bfa020",512:"#a8c020",1024:"#5cc87a",2048:"#7cf5c0"};
+let G,sc,over;
+function newG(){G=Array.from({length:4},()=>Array(4).fill(0));sc=0;over=false;$("#o1").classList.remove("s");add();add();draw()}
+function add(){const e=[];G.forEach((r,y)=>r.forEach((v,x)=>!v&&e.push([y,x])));if(!e.length)return;const[y,x]=e[Math.random()*e.length|0];G[y][x]=Math.random()<.9?2:4;G.n=[y,x]}
+function draw(){const b=$("#b2048");b.innerHTML="";G.forEach((r,y)=>r.forEach((v,x)=>{const c=document.createElement("div");c.className="c"+(G.n&&G.n[0]==y&&G.n[1]==x?" n":"");c.style.background=COL[v]||"#7cf5c0";c.style.color=v>4?"#fff":"#e8ebf7";c.textContent=v||"";b.append(c)}));
+ $("#s1").textContent=sc;if(sc>best["2048"]){best["2048"]=sc;store.set("2048",sc)}$("#r1").textContent=best["2048"]}
+function slide(r){const a=r.filter(Boolean),o=[];for(let i=0;i<a.length;i++){if(a[i]===a[i+1]){o.push(a[i]*2);sc+=a[i]*2;i++}else o.push(a[i])}while(o.length<4)o.push(0);return o}
+function rot(g){return g[0].map((_,i)=>g.map(r=>r[i]).reverse())}
+function move(d){if(over)return;let g=G.map(r=>[...r]);const t=[0,3,2,1][d];/*0 влево,1 вверх,2 вправо,3 вниз*/
+ for(let i=0;i<t;i++)g=rot(g);const before=JSON.stringify(g);g=g.map(slide);
+ const changed=before!==JSON.stringify(g);for(let i=0;i<(4-t)%4;i++)g=rot(g);if(!changed)return;
+ G=g;hap();add();draw();if(!can()){over=true;$("#o1").classList.add("s");hap("heavy")}}
+function can(){for(let y=0;y<4;y++)for(let x=0;x<4;x++){if(!G[y][x])return true;if(G[y][x+1]===G[y][x]||(G[y+1]&&G[y+1][x]===G[y][x]))return true}return false}
+let t0;const bd=$("#b2048");
+bd.addEventListener("touchstart",e=>{t0=e.touches[0]},{passive:true});
+bd.addEventListener("touchend",e=>{if(!t0)return;const t=e.changedTouches[0],dx=t.clientX-t0.clientX,dy=t.clientY-t0.clientY;
+ if(Math.max(Math.abs(dx),Math.abs(dy))<24)return;move(Math.abs(dx)>Math.abs(dy)?(dx<0?0:2):(dy<0?1:3))});
+addEventListener("keydown",e=>{const k={ArrowLeft:0,ArrowUp:1,ArrowRight:2,ArrowDown:3}[e.key];if(k!==undefined){e.preventDefault();move(k)}});
+$("#n1").onclick=newG;newG();
+
+/* ---------- Мемори ---------- */
+const EM=["🐙","🦊","🍉","🚀","🎸","🌵","🍩","⚡"];let first,lock,moves,pairs;
+function newM(){const d=[...EM,...EM].sort(()=>Math.random()-.5);moves=0;pairs=0;first=null;lock=false;$("#s2").textContent=0;
+ $("#bm").innerHTML=d.map(e=>`<button class="m"><i data-e="${e}"></i></button>`).join("");
+ $("#r2").textContent=best.memory||"—"}
+$("#bm").onclick=e=>{const c=e.target.closest(".m");if(!c||lock||c.classList.contains("f")||c.classList.contains("d"))return;
+ c.classList.add("f");hap();
+ if(!first){first=c;return}
+ moves++;$("#s2").textContent=moves;const a=first,b=c;first=null;
+ if(a.firstChild.dataset.e===b.firstChild.dataset.e){a.className=b.className="m d";pairs++;hap("medium");
+  if(pairs===8){last.memory=moves;if(!best.memory||moves<best.memory){best.memory=moves;store.set("memory",moves)}$("#r2").textContent=best.memory;try{tg.HapticFeedback.notificationOccurred("success")}catch(x){}}}
+ else{lock=true;setTimeout(()=>{a.classList.remove("f");b.classList.remove("f");lock=false},750)}};
+$("#n2").onclick=newM;newM();
+
+/* ---------- Реакция ---------- */
+const rz=$("#rz");let st="idle",tm,t1;$("#r3").textContent=best.reaction||"—";
+rz.onclick=()=>{
+ if(st==="idle"){st="wait";rz.className="w";rz.textContent="Жди зелёный…";tm=setTimeout(()=>{st="go";rz.className="g";rz.textContent="ЖМИ!";t1=performance.now()},1500+Math.random()*2800)}
+ else if(st==="wait"){clearTimeout(tm);st="idle";rz.className="";rz.textContent="Слишком рано! Нажми, чтобы повторить";hap("heavy")}
+ else{const ms=Math.round(performance.now()-t1);st="idle";rz.className="";rz.textContent=ms+" мс — ещё раз?";$("#s3").textContent=ms;
+  if(!best.reaction||ms<best.reaction){best.reaction=ms;store.set("reaction",ms)}$("#r3").textContent=best.reaction;hap("medium")}};
+</script></body></html>
